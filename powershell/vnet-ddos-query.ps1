@@ -10,7 +10,7 @@ Connect-AzAccount
 # Create an empty hash table to store the DDoS protection plan and virtual network objects
 $cache = @{}
 
-$subscriptions = Get-AzSubscription
+$subscriptions = Get-AzSubscription | Where-Object {$_.State -eq "Enabled" }
 foreach ($subscription in $subscriptions) {
     Select-AzSubscription -SubscriptionId $subscription.Id
     # check if the DDoS protection plans and virtual networks for the current subscription are already in the cache
