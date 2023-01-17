@@ -8,14 +8,14 @@ This script is intended to gather information about all virtual networks in all 
 Connect-AzAccount
 
 # Login to the selected tenant
-Add-AzAccount -Tenant <insert-tenant-id>
+$selectedTenantId = <insert-tenant-id>
 
-Write-Output "Authenticated to tenant $($selectedTenant.TenantId)"
+Write-Output "Using tenant $($selectedTenantId)"
 
 # Create an empty hash table to store the DDoS protection plan and virtual network objects
 $cache = @{}
 
-$subscriptions = Get-AzSubscription
+$subscriptions = Get-AzSubscription | Where-Object {$_.TenantId -eq $selectedTenant.TenantId -and $_.State -eq 'Enabled'}}
 foreach ($subscription in $subscriptions) {
     Select-AzSubscription -SubscriptionId $subscription.Id
     Write-Output "Processing subscription $($subscription.Name) ($($subscription.Id))"
