@@ -7,7 +7,7 @@ This script is intended to gather information about all virtual networks in all 
 # Connect to Azure account
 Connect-AzAccount
 
-$subscriptions = Get-AzSubscription
+$subscriptions = Get-AzSubscription | Where-Object {$_.State -eq "Enabled"}
 
 # Create an empty hash table to store the DDoS protection plan objects
 $ddosProtectionPlansCache = @{}
