@@ -7,56 +7,52 @@ This script is intended to gather information about all virtual networks in all 
 # Connect to Azure account
 Connect-AzAccount
 
-# Get all subscriptions for the account
 $subscriptions = Get-AzSubscription
 
-# Iterate through each subscription
+# Create an empty hash table to store the DDoS protection plan objects
+$ddosProtectionPlansCache = @{}
+
+# Retrieve all DDoS protection plans across all subscriptions
 foreach ($subscription in $subscriptions) {
-    # Set the current subscription context
     Select-AzSubscription -SubscriptionId $subscription.Id
-
-    # Get all virtual networks in the subscription
-    $vnets = Get-AzVirtualNetwork
-
-    # Iterate through each virtual network
-    foreach ($vnet in $vnets) {
-        # Check if the virtual network has a DDoS protection plan
-        if ($vnet.DdosProtectionPlan -ne $null) {
-            # Retrieve the DDoS protection plan for the virtual network
-            $ddos = Get-AzDdosProtectionPlan -Name $vnet.DdosProtectionPlan.Id -ErrorAction SilentlyContinue
-            if($ddos -eq $null)
-            {
-                # Iterate through all subscriptions to find the correct DDoS protection plan
-                foreach ($sub in $subscriptions) {
-                    if ($sub.Id -ne $subscription.Id) {
-                        # change subscription context
-                        Select-AzSubscription -SubscriptionId $sub.Id
-                        # check if the ddos plan exist in this subscription
-                        $ddos = Get-AzDdosProtectionPlan -Name $vnet.DdosProtectionPlan.Id -ErrorAction SilentlyContinue
-                        # if found, break the loop
-                        if($ddos -ne $null)
-                        {
-                            break
-                        }
-                    }
-                }
-            }
-        } else {
-          # If the virtual network does not have a DDoS protection plan, assign $null to the variable
-          $ddos = $null
+    $ddosPlans = Get-AzDdosProtectionPlan
+    foreach($ddosPlan in $ddosPlans) {
+        if(!$ddosProtectionPlansCache.ContainsKey($ddosPlan.Name)) {
+            $ddosProtectionPlansCache.Add($ddosPlan.Name, $ddosPlan)
         }
-        # Retrieve the resource tags for the virtual network
-        $tags = (Get-AzResource -ResourceId $vnet.Id).Tags
-        # Creating an output object with the required properties
-        $output = [PSCustomObject]@{
-            SubscriptionName = $subscription.Name
-            VirtualNetworkName = $vnet.Name
-            DdosProtectionPlan = if($ddos -ne $null){$ddos.Name} else {"NA"}
-            Tags = $tags
-        }
-        # Output the object
-        Write-Output $output
     }
 }
-#Exporting the output to CSV file
-$output | Export-Csv -Path "VirtualNetworks.csv" -NoTypeInformation
+
+# Get all virtual networks across all subscriptions
+$vnets = Get-AzVirtualNetwork
+
+# Create an empty array to store the output objects
+$outputs = @()
+
+# Iterate through each virtual network
+foreach ($vnet in $vnets) {
+    # get the subscription id of the virtual network
+    $subId = (Get-AzResource -ResourceId $vnet.Id).SubscriptionId
+    # set the subscription context
+    Select-AzSubscription -SubscriptionId $subId
+    if ($vnet.DdosProtectionPlan -ne $null) {
+        # check if the DDoS protection plan object is already in the cache
+        if ($ddosProtectionPlansCache.ContainsKey($vnet.DdosProtectionPlan.Id)) {
+            # Get the DDoS protection plan object from the cache
+            $ddos = $ddosProtectionPlansCache[$vnet.DdosProtectionPlan.Id]
+        } else {
+            $ddos = $null
+        }
+    } else {
+      $ddos = $null
+    }
+    $tags = (Get-AzResource -ResourceId $vnet.Id).Tags
+    $output = [PSCustomObject]@{
+        SubscriptionName = (Get-AzSubscription -SubscriptionId $subId).Name
+        VirtualNetworkName = $vnet.Name
+        DdosProtectionPlan = if($ddos -ne $null){$ddos.Name} else {"NA"}
+        Tags = $tags
+    }
+    $outputs += $output
+}
+$outputs | Export-Csv -Path "VirtualNetworks.csv" -NoTypeInformation
