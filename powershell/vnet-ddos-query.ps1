@@ -7,52 +7,61 @@ This script is intended to gather information about all virtual networks in all 
 # Connect to Azure account
 Connect-AzAccount
 
-$subscriptions = Get-AzSubscription | Where-Object {$_.State -eq "Enabled"}
+# Create an empty hash table to store the DDoS protection plan and virtual network objects
+$cache = @{}
 
-# Create an empty hash table to store the DDoS protection plan objects
-$ddosProtectionPlansCache = @{}
-
-# Retrieve all DDoS protection plans across all subscriptions
+$subscriptions = Get-AzSubscription
 foreach ($subscription in $subscriptions) {
     Select-AzSubscription -SubscriptionId $subscription.Id
-    $ddosPlans = Get-AzDdosProtectionPlan
-    foreach($ddosPlan in $ddosPlans) {
-        if(!$ddosProtectionPlansCache.ContainsKey($ddosPlan.Name)) {
-            $ddosProtectionPlansCache.Add($ddosPlan.Name, $ddosPlan)
-        }
+    # check if the DDoS protection plans and virtual networks for the current subscription are already in the cache
+    if ($cache.ContainsKey($subscription.Id)) {
+        # Get the DDoS protection plans and virtual networks from the cache
+        $ddosPlans = $cache[$subscription.Id].ddosPlans
+        $vnets = $cache[$subscription.Id].vnets
+    } else {
+        # Retrieve the DDoS protection plans and virtual networks from Azure
+        $ddosPlans = Get-AzDdosProtectionPlan
+        $vnets = Get-AzVirtualNetwork
+        # Add the DDoS protection plans and virtual networks to the cache
+        $cache.Add($subscription.Id, @{
+            ddosPlans = $ddosPlans
+            vnets = $vnets
+        })
     }
 }
 
-# Get all virtual networks across all subscriptions
-$vnets = Get-AzVirtualNetwork
+$allVnets = $cache.Values | foreach {$_.vnets}
 
 # Create an empty array to store the output objects
 $outputs = @()
 
 # Iterate through each virtual network
-foreach ($vnet in $vnets) {
-    # get the subscription id of the virtual network
-    $subId = (Get-AzResource -ResourceId $vnet.Id).SubscriptionId
-    # set the subscription context
-    Select-AzSubscription -SubscriptionId $subId
+foreach ($vnet in $allVnets) {
+    # Get the DDoS protection plan object
     if ($vnet.DdosProtectionPlan -ne $null) {
-        # check if the DDoS protection plan object is already in the cache
-        if ($ddosProtectionPlansCache.ContainsKey($vnet.DdosProtectionPlan.Id)) {
-            # Get the DDoS protection plan object from the cache
-            $ddos = $ddosProtectionPlansCache[$vnet.DdosProtectionPlan.Id]
+        if ($ddosPlans.ContainsKey($vnet.DdosProtectionPlan.Id)) {
+            $ddos = $ddosPlans[$vnet.DdosProtectionPlan.Id]
         } else {
             $ddos = $null
         }
     } else {
-      $ddos = $null
+        $ddos = $null
     }
+    # Get the resource group object
+    $rg = Get-AzResourceGroup -Name $vnet.ResourceGroupName
+    # Get the tags for the virtual network
     $tags = (Get-AzResource -ResourceId $vnet.Id).Tags
+    # Create an object to store the output for the current virtual network
     $output = [PSCustomObject]@{
-        SubscriptionName = (Get-AzSubscription -SubscriptionId $subId).Name
+        SubscriptionName = $subscription.Name
         VirtualNetworkName = $vnet.Name
-        DdosProtectionPlan = if($ddos -ne $null){$ddos.Name} else {"NA"}
+        DDOSProtectionPlan = $ddos
+        ResourceGroup = $rg.Name
         Tags = $tags
     }
+    # Add the output object to the array of output objects
     $outputs += $output
 }
+
+# Export the output objects to a CSV file
 $outputs | Export-Csv -Path "VirtualNetworks.csv" -NoTypeInformation
