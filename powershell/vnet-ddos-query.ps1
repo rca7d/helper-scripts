@@ -10,12 +10,15 @@ Connect-AzAccount
 # Login to the selected tenant
 Add-AzAccount -Tenant <insert-tenant-id>
 
+Write-Output "Authenticated to tenant $($selectedTenant.TenantId)"
+
 # Create an empty hash table to store the DDoS protection plan and virtual network objects
 $cache = @{}
 
-$subscriptions = Get-AzSubscription | Where-Object {$_.State -eq "Enabled" }
+$subscriptions = Get-AzSubscription
 foreach ($subscription in $subscriptions) {
     Select-AzSubscription -SubscriptionId $subscription.Id
+    Write-Output "Processing subscription $($subscription.Name) ($($subscription.Id))"
     # check if the DDoS protection plans and virtual networks for the current subscription are already in the cache
     if ($cache.ContainsKey($subscription.Id)) {
         # Get the DDoS protection plans and virtual networks from the cache
@@ -23,6 +26,7 @@ foreach ($subscription in $subscriptions) {
         $vnets = $cache[$subscription.Id].vnets
     } else {
         # Retrieve the DDoS protection plans and virtual networks from Azure
+        Write-Output "Retrieving DDoS protection plans and virtual networks for subscription $($subscription.Name)"
         $ddosPlans = Get-AzDdosProtectionPlan
         $vnets = Get-AzVirtualNetwork
         # Add the DDoS protection plans and virtual networks to the cache
@@ -30,16 +34,18 @@ foreach ($subscription in $subscriptions) {
             ddosPlans = $ddosPlans
             vnets = $vnets
         })
-    }
+            }
 }
-
 $allVnets = $cache.Values | foreach {$_.vnets}
+
+Write-Output "Retrieved $(($allVnets | Measure-Object).Count) virtual networks across all subscriptions"
 
 # Create an empty array to store the output objects
 $outputs = @()
 
 # Iterate through each virtual network
 foreach ($vnet in $allVnets) {
+    Write-Output "Processing virtual network $($vnet.Name)"
     # Get the DDoS protection plan object
     if ($vnet.DdosProtectionPlan -ne $null) {
         if ($ddosPlans.ContainsKey($vnet.DdosProtectionPlan.Id)) {
