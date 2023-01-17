@@ -37,9 +37,12 @@ $outputs = @()
 # Iterate through each virtual network
 foreach ($vnet in $allVnets) {
     Write-Output "Processing virtual network $($vnet.Name)"
+    # Get the subscription ID from the virtual network's resource ID
+    $subscriptionId = ($vnet.Id -split '/')[2]
+    $subscriptionName = $subscriptions | Where-Object {$_.Id -eq $subscriptionId}
     # Get the DDoS protection plan object
     if ($vnet.DdosProtectionPlan -ne $null) {
-        $ddosName = $cache[$vnet.SubscriptionId].ddosPlans | Where-Object {$_.Id -eq $vnet.DdosProtectionPlan.Id}
+        $ddos = $cache[$subscriptionId].ddosPlans | Where-Object {$_.Id -eq $vnet.DdosProtectionPlan.Id}
         if ($ddos) {
             $ddosName = $ddos.Name
         } else {
@@ -54,9 +57,9 @@ foreach ($vnet in $allVnets) {
     $tags = (Get-AzResource -ResourceId $vnet.Id).Tags
     # Create an object to store the output for the current virtual network
     $output = [PSCustomObject]@{
-        SubscriptionName = $subscription.Name
+        SubscriptionName = $subscriptionName
         VirtualNetworkName = $vnet.Name
-        DDOSProtectionPlanName = $ddos
+        DDOSProtectionPlanName = $ddosName
         ResourceGroupName = $rgName
         Tags = $tags
     }
