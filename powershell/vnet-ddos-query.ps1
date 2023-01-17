@@ -7,6 +7,9 @@ This script is intended to gather information about all virtual networks in all 
 # Connect to Azure account
 Connect-AzAccount
 
+# Login to the selected tenant
+Add-AzAccount -Tenant <insert-tenant-id>
+
 # Create an empty hash table to store the DDoS protection plan and virtual network objects
 $cache = @{}
 
