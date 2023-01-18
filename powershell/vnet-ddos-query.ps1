@@ -1,6 +1,6 @@
 <#
 
-This script is intended to gather information about all virtual networks in all subscriptions of an Azure account. The output will include the subscription name, virtual network name, DDoS protection plan, and resource tags. The script will export all the information to a CSV file named VirtualNetworks.csv. It will also handle the case where a virtual network does not have a DDoS protection plan and will output "NA" in the DdosProtectionPlan column for that virtual network.
+This script retrieves all Azure subscriptions, DDoS protection plans, and virtual networks, and caches them. It then iterates through each virtual network and creates an output object with the subscription ID, subscription name, resource group name, virtual network ID, and DDoS protection plan name. The output objects are then exported to a CSV file named VirtualNetworks.csv.
 
 #>
 
